@@ -1,6 +1,7 @@
 package structfilter
 
 import (
+	"errors"
 	"reflect"
 )
 
@@ -21,5 +22,80 @@ func getStructType(t reflect.Type) (reflect.Type, int) {
 		default:
 			return nil, -1
 		}
+	}
+}
+
+// ReflectType allows direct filtering of structure types as presented by the
+// golang reflect package. orig must be a structure type, or a pointer type
+// which eventually indirects to a structure. On success, the returned filtered
+// type is always a structure type, not a pointer type.
+func (t *T) ReflectType(orig reflect.Type) (reflect.Type, error) {
+	if orig == nil {
+		return nil, errors.New("orig is nil")
+	}
+	structType, _ := getStructType(orig)
+	if structType == nil {
+		return nil, errors.New("not a struct type")
+	}
+	if filteredType, ok := t.types[structType]; ok {
+		return filteredType, nil
+	}
+	return t.filterType(structType)
+}
+
+// mapType maps the specified original type to a matching generated type.
+// If orig cannot be mapped (e. g., if it is recursive), nil is returned
+// instead.
+func (t *T) mapType(orig reflect.Type) reflect.Type {
+	switch orig.Kind() {
+	case reflect.Array:
+		elem := t.mapType(orig.Elem())
+		if elem == nil {
+			return nil
+		}
+		if elem == orig.Elem() {
+			return orig
+		}
+		return reflect.ArrayOf(orig.Len(), elem)
+	case reflect.Map:
+		key := t.mapType(orig.Key())
+		elem := t.mapType(orig.Elem())
+		if key == nil || elem == nil {
+			return nil
+		}
+		if key == orig.Key() && elem == orig.Elem() {
+			return orig
+		}
+		return reflect.MapOf(key, elem)
+	case reflect.Ptr:
+		elem := t.mapType(orig.Elem())
+		if elem == nil {
+			return nil
+		}
+		if elem == orig.Elem() {
+			return orig
+		}
+		return reflect.PtrTo(elem)
+	case reflect.Slice:
+		elem := t.mapType(orig.Elem())
+		if elem == nil {
+			return nil
+		}
+		if elem == orig.Elem() {
+			return orig
+		}
+		return reflect.SliceOf(elem)
+	case reflect.Struct:
+		elem, ok := t.types[orig]
+		if ok {
+			return elem // nil if recursive
+		}
+		elem, err := t.filterType(orig)
+		if err != nil {
+			return nil
+		}
+		return elem
+	default:
+		return orig
 	}
 }
