@@ -22,6 +22,21 @@ func TestNonStructReflectType(t *testing.T) {
 	}
 }
 
+// TestPointerToStructReflectType tests the ReflectType method with pointer
+// to struct types.
+func TestPointerToStructReflectType(t *testing.T) {
+	pStruct := &struct{}{}
+	pStructType := reflect.TypeOf(pStruct)
+	ppStructType := reflect.TypeOf(&pStruct)
+	filter := New()
+	if _, err := filter.ReflectType(pStructType); err != nil {
+		t.Errorf("Unexpected error on *struct orig type: %s", err)
+	}
+	if _, err := filter.ReflectType(ppStructType); err == nil {
+		t.Error("Expected error on **struct orig type")
+	}
+}
+
 // TestEmptyStructReflectType tests the ReflectType method with an empty struct.
 func TestEmptyStructReflectType(t *testing.T) {
 	filter := New()

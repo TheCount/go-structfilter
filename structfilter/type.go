@@ -26,16 +26,19 @@ func getStructType(t reflect.Type) (reflect.Type, int) {
 }
 
 // ReflectType allows direct filtering of structure types as presented by the
-// golang reflect package. orig must be a structure type, or a pointer type
-// which eventually indirects to a structure. On success, the returned filtered
+// golang reflect package. orig must be a structure type, or a pointer to a
+// a structure type. On success, the returned filtered
 // type is always a structure type, not a pointer type.
 func (t *T) ReflectType(orig reflect.Type) (reflect.Type, error) {
 	if orig == nil {
 		return nil, errors.New("orig is nil")
 	}
-	structType, _ := getStructType(orig)
+	structType, depth := getStructType(orig)
 	if structType == nil {
-		return nil, errors.New("not a struct type")
+		return nil, errors.New("not a struct type or pointer to struct type")
+	}
+	if depth > 1 {
+		return nil, errors.New("at most one pointer indirection allowed")
 	}
 	if filteredType, ok := t.types[structType]; ok {
 		return filteredType, nil
