@@ -57,6 +57,10 @@ func (t *T) mapType(orig reflect.Type) reflect.Type {
 			return orig
 		}
 		return reflect.ArrayOf(orig.Len(), elem)
+	case reflect.Interface:
+		// Generated type has no methods, so we need to downgrade all interfaces
+		// to plain interface{}.
+		return interfaceType
 	case reflect.Map:
 		key := t.mapType(orig.Key())
 		elem := t.mapType(orig.Elem())

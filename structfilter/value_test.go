@@ -2,6 +2,7 @@ package structfilter
 
 import (
 	"reflect"
+	"regexp"
 	"testing"
 )
 
@@ -68,5 +69,24 @@ func TestToValueRecursive(t *testing.T) {
 	if filteredValue1.Kind() != reflect.Struct ||
 		filteredValue2.Kind() != reflect.Struct {
 		t.Error("Expected filtered recursive values to be structs")
+	}
+}
+
+// TestToValueInterface tests value filtering with an intervening interface.
+func TestToValueInterface(t *testing.T) {
+	filter := New(RemoveFieldFilter(regexp.MustCompile("^U.*$")))
+	orig := SimpleStruct{
+		Interface: SimpleStruct{
+			Interface: 42,
+		},
+	}
+	filtered := filter.To(orig)
+	filteredValue := reflect.ValueOf(filtered)
+	if filteredValue.FieldByName("Uint").IsValid() {
+		t.Error("Top level field Uint should have been removed")
+	}
+	filteredValue = filteredValue.FieldByName("Interface").Elem()
+	if filteredValue.FieldByName("Uint").IsValid() {
+		t.Error("Nested field Uint should have been removed")
 	}
 }

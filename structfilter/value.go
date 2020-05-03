@@ -31,14 +31,22 @@ func (t *T) toValue(
 	seenPointers map[unsafe.Pointer]reflect.Value,
 	origValue, filteredValue reflect.Value,
 ) {
+	// If the original value is stored in an interface, we need to unwrap that
+	// first.
 	origType := origValue.Type()
+	if origType.Kind() == reflect.Interface {
+		if !origValue.IsNil() {
+			t.toValue(seenPointers, origValue.Elem(), filteredValue)
+		}
+		return
+	}
+	// Common shortcut
 	filteredType := filteredValue.Type()
 	if origType == filteredType {
 		filteredValue.Set(origValue)
 		return
 	}
-	// Different types means origType is array, struct, pointer, slice, or map.
-	// In the latter three cases, we may have seen the value already.
+	// Avoid infinite recursion
 	switch origType.Kind() {
 	case reflect.Ptr, reflect.Slice, reflect.Map:
 		seenValue, ok := seenPointers[unsafe.Pointer(origValue.Pointer())]
@@ -54,6 +62,7 @@ func (t *T) toValue(
 		filteredType = t.mapType(origType)
 		filteredValue = reflect.New(filteredType).Elem()
 	}
+
 	switch origType.Kind() {
 	case reflect.Array:
 		for i := 0; i != origType.Len(); i++ {
@@ -70,12 +79,13 @@ func (t *T) toValue(
 			t.toValue(seenPointers, origValue.Field(i),
 				filteredValue.FieldByName(origStructField.Name))
 		}
-	default:
-		// Pointer, slice, or map: store as seen.
+	case reflect.Ptr, reflect.Slice, reflect.Map:
 		if !origValue.IsNil() {
 			seenPointers[unsafe.Pointer(origValue.Pointer())] = filteredValue
 			t.toPointer(seenPointers, origValue, filteredValue)
 		}
+	default:
+		filteredValue.Set(origValue)
 	}
 	oldFilteredValue.Set(filteredValue)
 }
