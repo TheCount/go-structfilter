@@ -40,17 +40,20 @@ func (f *Field) Keep() {
 // newField creates a new struct field based on the original field and field.
 func (t *T) newField(
 	orig *reflect.StructField, field *Field,
-) reflect.StructField {
+) (reflect.StructField, error) {
 	result := reflect.StructField{
 		Name:      field.name,
 		Tag:       field.Tag,
 		Anonymous: orig.Anonymous,
 	}
-	mappedType := t.mapType(orig.Type)
+	mappedType, err := t.mapType(orig.Type)
+	if err != nil {
+		return reflect.StructField{}, err
+	}
 	if mappedType == nil {
 		result.Type = interfaceType
 	} else {
 		result.Type = mappedType
 	}
-	return result
+	return result, nil
 }

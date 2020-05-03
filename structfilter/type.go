@@ -47,62 +47,77 @@ func (t *T) ReflectType(orig reflect.Type) (reflect.Type, error) {
 }
 
 // mapType maps the specified original type to a matching generated type.
-// If orig cannot be mapped (e. g., if it is recursive), nil is returned
+// If orig cannot be mapped because it is recursive, nil is returned
 // instead.
-func (t *T) mapType(orig reflect.Type) reflect.Type {
+func (t *T) mapType(orig reflect.Type) (reflect.Type, error) {
 	switch orig.Kind() {
 	case reflect.Array:
-		elem := t.mapType(orig.Elem())
+		elem, err := t.mapType(orig.Elem())
+		if err != nil {
+			return nil, err
+		}
 		if elem == nil {
-			return nil
+			return nil, nil
 		}
 		if elem == orig.Elem() {
-			return orig
+			return orig, nil
 		}
-		return reflect.ArrayOf(orig.Len(), elem)
+		return reflect.ArrayOf(orig.Len(), elem), nil
 	case reflect.Interface:
 		// Generated type has no methods, so we need to downgrade all interfaces
 		// to plain interface{}.
-		return interfaceType
+		return interfaceType, nil
 	case reflect.Map:
-		key := t.mapType(orig.Key())
-		elem := t.mapType(orig.Elem())
+		key, err := t.mapType(orig.Key())
+		if err != nil {
+			return nil, err
+		}
+		elem, err := t.mapType(orig.Elem())
+		if err != nil {
+			return nil, err
+		}
 		if key == nil || elem == nil {
-			return nil
+			return nil, nil
 		}
 		if key == orig.Key() && elem == orig.Elem() {
-			return orig
+			return orig, nil
 		}
-		return reflect.MapOf(key, elem)
+		return reflect.MapOf(key, elem), nil
 	case reflect.Ptr:
-		elem := t.mapType(orig.Elem())
+		elem, err := t.mapType(orig.Elem())
+		if err != nil {
+			return nil, err
+		}
 		if elem == nil {
-			return nil
+			return nil, nil
 		}
 		if elem == orig.Elem() {
-			return orig
+			return orig, nil
 		}
-		return reflect.PtrTo(elem)
+		return reflect.PtrTo(elem), nil
 	case reflect.Slice:
-		elem := t.mapType(orig.Elem())
+		elem, err := t.mapType(orig.Elem())
+		if err != nil {
+			return nil, err
+		}
 		if elem == nil {
-			return nil
+			return nil, nil
 		}
 		if elem == orig.Elem() {
-			return orig
+			return orig, nil
 		}
-		return reflect.SliceOf(elem)
+		return reflect.SliceOf(elem), nil
 	case reflect.Struct:
 		elem, ok := t.types[orig]
 		if ok {
-			return elem // nil if recursive
+			return elem, nil // elem == nil if recursive
 		}
 		elem, err := t.filterType(orig)
 		if err != nil {
-			return nil
+			return nil, err
 		}
-		return elem
+		return elem, nil
 	default:
-		return orig
+		return orig, nil
 	}
 }

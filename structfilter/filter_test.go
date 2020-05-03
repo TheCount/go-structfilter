@@ -71,10 +71,28 @@ func TestErrFilter(t *testing.T) {
 	}
 }
 
+// TestOccasionalErrFilter tests filters throwing an occasional error.
+func TestOccasionalErrFilter(t *testing.T) {
+	i := 0
+	filter := New(func(*Field) error {
+		i++
+		if i%4 == 0 {
+			return errFilter
+		}
+		return nil
+	})
+	if _, err := filter.Convert(SimpleStruct{}); err == nil {
+		t.Error("Expected error in value conversion with occasional error filter")
+	}
+}
+
 // TestNilRemoveFieldFilter tests RemoveFieldFilter with a nil matcher.
 func TestNilRemoveFieldFilter(t *testing.T) {
 	filter := New(RemoveFieldFilter(nil))
-	filtered := filter.Convert(StructKeepRemove{})
+	filtered, err := filter.Convert(StructKeepRemove{})
+	if err != nil {
+		t.Fatal(err)
+	}
 	value := reflect.ValueOf(filtered)
 	if value.NumField() != 4 {
 		t.Error("Expected no removed fields with nil matcher")
@@ -85,7 +103,10 @@ func TestNilRemoveFieldFilter(t *testing.T) {
 func TestRemoveFieldFilter(t *testing.T) {
 	re := regexp.MustCompile("^Remove.*$")
 	filter := New(RemoveFieldFilter(re))
-	filtered := filter.Convert(StructKeepRemove{})
+	filtered, err := filter.Convert(StructKeepRemove{})
+	if err != nil {
+		t.Fatal(err)
+	}
 	value := reflect.ValueOf(filtered)
 	if value.NumField() != 2 {
 		t.Errorf("Expected 2 remaining fields, got %d", value.NumField())
@@ -98,7 +119,10 @@ func TestRemoveFieldFilter(t *testing.T) {
 // TestNilInsertTagFilter tests InsertTagFilter with a nil matcher.
 func TestNilInsertTagFilter(t *testing.T) {
 	filter := New(InsertTagFilter(nil, `test:"foo"`))
-	filtered := filter.Convert(StructTag{})
+	filtered, err := filter.Convert(StructTag{})
+	if err != nil {
+		t.Fatal(err)
+	}
 	value := reflect.ValueOf(filtered)
 	tag0 := value.Type().Field(0).Tag
 	tag1 := value.Type().Field(1).Tag
@@ -122,7 +146,10 @@ func TestInsertTagFilter(t *testing.T) {
 	// Now proper test
 	const tag = `test:"inserted"`
 	filter := New(InsertTagFilter(re, tag))
-	filtered := filter.Convert(StructTag{})
+	filtered, err := filter.Convert(StructTag{})
+	if err != nil {
+		t.Fatal(err)
+	}
 	value := reflect.ValueOf(filtered)
 	tag0 := value.Type().Field(0).Tag
 	tag1 := value.Type().Field(1).Tag

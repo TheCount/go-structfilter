@@ -1,27 +1,33 @@
 package structfilter
 
 import (
+	"fmt"
 	"reflect"
 	"unsafe"
 )
 
 // Convert converts the specified input value to an output value based on the
 // filtered type of the dynamic type of the input. If in is nil, the return
-// value is nil. Maps, pointers, and slices whose type definition does
+// value is (nil, nil). Maps, pointers, and slices whose type definition does
 // not involve a structure type will be copied shallowly. Struct fields not
 // present in the filtered type are dropped. ToValue also works with recursive
 // (self-referential) values.
-func (t *T) Convert(in interface{}) interface{} {
+func (t *T) Convert(in interface{}) (interface{}, error) {
 	origValue := reflect.ValueOf(in)
 	if !origValue.IsValid() {
-		return nil
+		return nil, nil
 	}
 	seenPointers := make(map[unsafe.Pointer]reflect.Value)
 	origType := origValue.Type()
-	filteredType := t.mapType(origType)
+	filteredType, err := t.mapType(origType)
+	if err != nil {
+		return nil, err
+	}
 	filteredValue := reflect.New(filteredType).Elem()
-	t.convertValue(seenPointers, origValue, filteredValue)
-	return filteredValue.Interface()
+	if err = t.convertValue(seenPointers, origValue, filteredValue); err != nil {
+		return nil, err
+	}
+	return filteredValue.Interface(), nil
 }
 
 // convertValue converts the specified original value to its filtered
@@ -31,21 +37,21 @@ func (t *T) Convert(in interface{}) interface{} {
 func (t *T) convertValue(
 	seenPointers map[unsafe.Pointer]reflect.Value,
 	origValue, filteredValue reflect.Value,
-) {
+) error {
 	// If the original value is stored in an interface, we need to unwrap that
 	// first.
 	origType := origValue.Type()
 	if origType.Kind() == reflect.Interface {
 		if !origValue.IsNil() {
-			t.convertValue(seenPointers, origValue.Elem(), filteredValue)
+			return t.convertValue(seenPointers, origValue.Elem(), filteredValue)
 		}
-		return
+		return nil
 	}
 	// Common shortcut
 	filteredType := filteredValue.Type()
 	if origType == filteredType {
 		filteredValue.Set(origValue)
-		return
+		return nil
 	}
 	// Avoid infinite recursion
 	switch origType.Kind() {
@@ -53,14 +59,18 @@ func (t *T) convertValue(
 		seenValue, ok := seenPointers[unsafe.Pointer(origValue.Pointer())]
 		if ok {
 			filteredValue.Set(seenValue)
-			return
+			return nil
 		}
 	}
 	// The filtered type may be interface{} to avoid a recursive type definition.
 	// In this case we need to allocate an actual value.
 	oldFilteredValue := filteredValue
 	if filteredType.Kind() == reflect.Interface {
-		filteredType = t.mapType(origType)
+		var err error
+		filteredType, err = t.mapType(origType)
+		if err != nil {
+			return err
+		}
 		filteredValue = reflect.New(filteredType).Elem()
 	}
 
@@ -69,7 +79,11 @@ func (t *T) convertValue(
 		for i := 0; i != origType.Len(); i++ {
 			origIndexValue := origValue.Index(i)
 			filteredIndexValue := filteredValue.Index(i)
-			t.convertValue(seenPointers, origIndexValue, filteredIndexValue)
+			if err := t.convertValue(
+				seenPointers, origIndexValue, filteredIndexValue,
+			); err != nil {
+				return fmt.Errorf("array[%d]: %w", i, err)
+			}
 		}
 	case reflect.Struct:
 		for i := 0; i != origType.NumField(); i++ {
@@ -77,18 +91,23 @@ func (t *T) convertValue(
 			if _, ok := filteredType.FieldByName(origStructField.Name); !ok {
 				continue
 			}
-			t.convertValue(seenPointers, origValue.Field(i),
-				filteredValue.FieldByName(origStructField.Name))
+			if err := t.convertValue(
+				seenPointers, origValue.Field(i),
+				filteredValue.FieldByName(origStructField.Name),
+			); err != nil {
+				return fmt.Errorf("struct %s: %w", origStructField.Name, err)
+			}
 		}
 	case reflect.Ptr, reflect.Slice, reflect.Map:
 		if !origValue.IsNil() {
 			seenPointers[unsafe.Pointer(origValue.Pointer())] = filteredValue
-			t.convertPointer(seenPointers, origValue, filteredValue)
+			return t.convertPointer(seenPointers, origValue, filteredValue)
 		}
 	default:
 		filteredValue.Set(origValue)
 	}
 	oldFilteredValue.Set(filteredValue)
+	return nil
 }
 
 // convertPointer converts the specified original value to the specified
@@ -98,16 +117,24 @@ func (t *T) convertValue(
 func (t *T) convertPointer(
 	seenPointers map[unsafe.Pointer]reflect.Value,
 	origValue, filteredValue reflect.Value,
-) {
+) error {
 	switch origValue.Kind() {
 	case reflect.Ptr:
 		filteredValue.Set(reflect.New(filteredValue.Type().Elem()))
-		t.convertValue(seenPointers, origValue.Elem(), filteredValue.Elem())
+		if err := t.convertValue(
+			seenPointers, origValue.Elem(), filteredValue.Elem(),
+		); err != nil {
+			return fmt.Errorf("pointer: %w", err)
+		}
 	case reflect.Slice:
 		filteredElemType := filteredValue.Type().Elem()
 		for i := 0; i != origValue.Len(); i++ {
 			filteredElem := reflect.New(filteredElemType).Elem()
-			t.convertValue(seenPointers, origValue.Index(i), filteredElem)
+			if err := t.convertValue(
+				seenPointers, origValue.Index(i), filteredElem,
+			); err != nil {
+				return fmt.Errorf("slice[%d]: %w", i, err)
+			}
 			filteredValue.Set(reflect.Append(filteredValue, filteredElem))
 		}
 	case reflect.Map:
@@ -121,9 +148,19 @@ func (t *T) convertPointer(
 			origElemValue := iter.Value()
 			filteredKeyValue := reflect.New(filteredKeyType).Elem()
 			filteredElemValue := reflect.New(filteredElemType).Elem()
-			t.convertValue(seenPointers, origKeyValue, filteredKeyValue)
-			t.convertValue(seenPointers, origElemValue, filteredElemValue)
+			if err := t.convertValue(
+				seenPointers, origKeyValue, filteredKeyValue,
+			); err != nil {
+				return fmt.Errorf("map[%v] key: %w", origKeyValue, err)
+			}
+			if err := t.convertValue(
+				seenPointers, origElemValue, filteredElemValue,
+			); err != nil {
+				return fmt.Errorf("map[%v] value %v: %w",
+					origKeyValue, origElemValue, err)
+			}
 			filteredValue.SetMapIndex(filteredKeyValue, filteredElemValue)
 		}
 	}
+	return nil
 }

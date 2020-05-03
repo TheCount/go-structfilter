@@ -111,7 +111,11 @@ func (t *T) filterType(orig reflect.Type) (filtered reflect.Type, err error) {
 		if !field.keep {
 			continue
 		}
-		filteredFields = append(filteredFields, t.newField(&origField, &field))
+		newField, err := t.newField(&origField, &field)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", origField.Name, err)
+		}
+		filteredFields = append(filteredFields, newField)
 	}
 	filtered = reflect.StructOf(filteredFields)
 	t.types[orig] = filtered

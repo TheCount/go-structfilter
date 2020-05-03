@@ -9,16 +9,27 @@ import (
 // TestToSimpleValue tests simple value filtering.
 func TestToSimpleValue(t *testing.T) {
 	filter := New()
-	if filter.Convert(nil) != nil {
+	filtered, err := filter.Convert(nil)
+	if err != nil {
+		t.Fatalf("Error in nil conversion: %s", err)
+	}
+	if filtered != nil {
 		t.Error("Nil to value does not yield nil")
 	}
-	if v, ok := filter.Convert(42).(int); !ok {
+	filtered, err = filter.Convert(42)
+	if err != nil {
+		t.Fatalf("Error in integer conversion: %s", err)
+	}
+	if v, ok := filtered.(int); !ok {
 		t.Error("Integer to value does not yield integer")
 	} else if v != 42 {
 		t.Error("Integer to value does not yield same result")
 	}
 	var simple SimpleStruct
-	filtered := filter.Convert(simple)
+	filtered, err = filter.Convert(simple)
+	if err != nil {
+		t.Fatal(err)
+	}
 	filteredValue := reflect.ValueOf(filtered)
 	if filteredValue.Kind() != reflect.Struct {
 		t.Error("Expected filtered value to be a struct")
@@ -28,7 +39,7 @@ func TestToSimpleValue(t *testing.T) {
 // TestToValueWithUnexportedFields tests value filtering with unexported fields.
 func TestToValueWithUnexportedFields(t *testing.T) {
 	filter := New()
-	filtered := filter.Convert(StructWithUnexportedFields{
+	filtered, err := filter.Convert(StructWithUnexportedFields{
 		Exported1:   1,
 		unexported1: -1,
 		Exported2:   2,
@@ -36,6 +47,9 @@ func TestToValueWithUnexportedFields(t *testing.T) {
 		Exported3:   3,
 		unexported3: -3,
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	filteredValue := reflect.ValueOf(filtered)
 	if filteredValue.NumField() != 3 {
 		t.Fatalf("Expected 3 fields in filtered value, got %d",
@@ -62,8 +76,11 @@ func TestToValueRecursive(t *testing.T) {
 	rec2.Map[&rec2] = rec1
 	rec2.Slice = append(rec2.Slice, rec1, rec2)
 	rec1.Ptr = &rec2
-	filtered1 := filter.Convert(rec1)
-	filtered2 := filter.Convert(rec2)
+	filtered1, err1 := filter.Convert(rec1)
+	filtered2, err2 := filter.Convert(rec2)
+	if err1 != nil || err2 != nil {
+		t.Fatal(err1, err2)
+	}
 	filteredValue1 := reflect.ValueOf(filtered1)
 	filteredValue2 := reflect.ValueOf(filtered2)
 	if filteredValue1.Kind() != reflect.Struct ||
@@ -80,7 +97,10 @@ func TestToValueInterface(t *testing.T) {
 			Interface: 42,
 		},
 	}
-	filtered := filter.Convert(orig)
+	filtered, err := filter.Convert(orig)
+	if err != nil {
+		t.Fatal(err)
+	}
 	filteredValue := reflect.ValueOf(filtered)
 	if filteredValue.FieldByName("Uint").IsValid() {
 		t.Error("Top level field Uint should have been removed")
