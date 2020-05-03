@@ -16,3 +16,21 @@ type Field struct {
 	// keep indicates whether the field should be kept.
 	keep bool
 }
+
+// newField creates a new struct field based on the original field and field.
+func (t *T) newField(
+	orig *reflect.StructField, field *Field,
+) reflect.StructField {
+	result := reflect.StructField{
+		Name:      field.name,
+		Tag:       field.tag,
+		Anonymous: orig.Anonymous,
+	}
+	mappedType := t.mapType(orig.Type)
+	if mappedType == nil {
+		result.Type = interfaceType
+	} else {
+		result.Type = mappedType
+	}
+	return result
+}

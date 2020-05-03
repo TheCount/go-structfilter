@@ -57,24 +57,6 @@ func (t *T) filterType(orig reflect.Type) (filtered reflect.Type, err error) {
 	return
 }
 
-// newField creates a new struct field based on the original field and field.
-func (t *T) newField(
-	orig *reflect.StructField, field *Field,
-) reflect.StructField {
-	result := reflect.StructField{
-		Name:      field.name,
-		Tag:       field.tag,
-		Anonymous: orig.Anonymous,
-	}
-	mappedType := t.mapType(orig.Type)
-	if mappedType == nil {
-		result.Type = interfaceType
-	} else {
-		result.Type = mappedType
-	}
-	return result
-}
-
 // New creates a new structure filter based on the specified filter functions.
 // The filter functions are called in order for each structure field.
 func New(filters ...Func) *T {
