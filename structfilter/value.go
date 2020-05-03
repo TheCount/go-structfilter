@@ -5,13 +5,13 @@ import (
 	"unsafe"
 )
 
-// To converts the specified input value to an output value based on the
+// Convert converts the specified input value to an output value based on the
 // filtered type of the dynamic type of the input. If in is nil, the return
 // value is nil. Maps, pointers, and slices whose type definition does
 // not involve a structure type will be copied shallowly. Struct fields not
 // present in the filtered type are dropped. ToValue also works with recursive
 // (self-referential) values.
-func (t *T) To(in interface{}) interface{} {
+func (t *T) Convert(in interface{}) interface{} {
 	origValue := reflect.ValueOf(in)
 	if !origValue.IsValid() {
 		return nil
@@ -20,14 +20,15 @@ func (t *T) To(in interface{}) interface{} {
 	origType := origValue.Type()
 	filteredType := t.mapType(origType)
 	filteredValue := reflect.New(filteredType).Elem()
-	t.toValue(seenPointers, origValue, filteredValue)
+	t.convertValue(seenPointers, origValue, filteredValue)
 	return filteredValue.Interface()
 }
 
-// toValue converts the specified original value to its filtered counterpart
-// and assigns it to filteredValue. The seenPointers map keeps track of
-// structure, map, and slice pointers, to properly convert recursive values.
-func (t *T) toValue(
+// convertValue converts the specified original value to its filtered
+// counterpart and assigns it to filteredValue. The seenPointers map keeps
+// track of structure, map, and slice pointers, to properly convert recursive
+// values.
+func (t *T) convertValue(
 	seenPointers map[unsafe.Pointer]reflect.Value,
 	origValue, filteredValue reflect.Value,
 ) {
@@ -36,7 +37,7 @@ func (t *T) toValue(
 	origType := origValue.Type()
 	if origType.Kind() == reflect.Interface {
 		if !origValue.IsNil() {
-			t.toValue(seenPointers, origValue.Elem(), filteredValue)
+			t.convertValue(seenPointers, origValue.Elem(), filteredValue)
 		}
 		return
 	}
@@ -68,7 +69,7 @@ func (t *T) toValue(
 		for i := 0; i != origType.Len(); i++ {
 			origIndexValue := origValue.Index(i)
 			filteredIndexValue := filteredValue.Index(i)
-			t.toValue(seenPointers, origIndexValue, filteredIndexValue)
+			t.convertValue(seenPointers, origIndexValue, filteredIndexValue)
 		}
 	case reflect.Struct:
 		for i := 0; i != origType.NumField(); i++ {
@@ -76,13 +77,13 @@ func (t *T) toValue(
 			if _, ok := filteredType.FieldByName(origStructField.Name); !ok {
 				continue
 			}
-			t.toValue(seenPointers, origValue.Field(i),
+			t.convertValue(seenPointers, origValue.Field(i),
 				filteredValue.FieldByName(origStructField.Name))
 		}
 	case reflect.Ptr, reflect.Slice, reflect.Map:
 		if !origValue.IsNil() {
 			seenPointers[unsafe.Pointer(origValue.Pointer())] = filteredValue
-			t.toPointer(seenPointers, origValue, filteredValue)
+			t.convertPointer(seenPointers, origValue, filteredValue)
 		}
 	default:
 		filteredValue.Set(origValue)
@@ -90,22 +91,23 @@ func (t *T) toValue(
 	oldFilteredValue.Set(filteredValue)
 }
 
-// toPointer converts the specified original value to the specified filtered
-// value. Both must have the same kind, which must be pointer, slice, or map.
-// For info on seenPointers, see T.toValue().
-func (t *T) toPointer(
+// convertPointer converts the specified original value to the specified
+// filtered value. Both must have the same kind, which must be pointer, slice,
+// or map.
+// For info on seenPointers, see T.convertValue().
+func (t *T) convertPointer(
 	seenPointers map[unsafe.Pointer]reflect.Value,
 	origValue, filteredValue reflect.Value,
 ) {
 	switch origValue.Kind() {
 	case reflect.Ptr:
 		filteredValue.Set(reflect.New(filteredValue.Type().Elem()))
-		t.toValue(seenPointers, origValue.Elem(), filteredValue.Elem())
+		t.convertValue(seenPointers, origValue.Elem(), filteredValue.Elem())
 	case reflect.Slice:
 		filteredElemType := filteredValue.Type().Elem()
 		for i := 0; i != origValue.Len(); i++ {
 			filteredElem := reflect.New(filteredElemType).Elem()
-			t.toValue(seenPointers, origValue.Index(i), filteredElem)
+			t.convertValue(seenPointers, origValue.Index(i), filteredElem)
 			filteredValue.Set(reflect.Append(filteredValue, filteredElem))
 		}
 	case reflect.Map:
@@ -119,8 +121,8 @@ func (t *T) toPointer(
 			origElemValue := iter.Value()
 			filteredKeyValue := reflect.New(filteredKeyType).Elem()
 			filteredElemValue := reflect.New(filteredElemType).Elem()
-			t.toValue(seenPointers, origKeyValue, filteredKeyValue)
-			t.toValue(seenPointers, origElemValue, filteredElemValue)
+			t.convertValue(seenPointers, origKeyValue, filteredKeyValue)
+			t.convertValue(seenPointers, origElemValue, filteredElemValue)
 			filteredValue.SetMapIndex(filteredKeyValue, filteredElemValue)
 		}
 	}

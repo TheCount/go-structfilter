@@ -15,7 +15,7 @@ func TestRemoveKeep(t *testing.T) {
 		return nil
 	})
 	orig := SimpleStruct{}
-	filtered := filter.To(orig)
+	filtered := filter.Convert(orig)
 	origValue := reflect.ValueOf(orig)
 	filteredValue := reflect.ValueOf(filtered)
 	if origValue.NumField() != filteredValue.NumField() {

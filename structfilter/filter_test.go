@@ -74,7 +74,7 @@ func TestErrFilter(t *testing.T) {
 // TestNilRemoveFieldFilter tests RemoveFieldFilter with a nil matcher.
 func TestNilRemoveFieldFilter(t *testing.T) {
 	filter := New(RemoveFieldFilter(nil))
-	filtered := filter.To(StructKeepRemove{})
+	filtered := filter.Convert(StructKeepRemove{})
 	value := reflect.ValueOf(filtered)
 	if value.NumField() != 4 {
 		t.Error("Expected no removed fields with nil matcher")
@@ -85,7 +85,7 @@ func TestNilRemoveFieldFilter(t *testing.T) {
 func TestRemoveFieldFilter(t *testing.T) {
 	re := regexp.MustCompile("^Remove.*$")
 	filter := New(RemoveFieldFilter(re))
-	filtered := filter.To(StructKeepRemove{})
+	filtered := filter.Convert(StructKeepRemove{})
 	value := reflect.ValueOf(filtered)
 	if value.NumField() != 2 {
 		t.Errorf("Expected 2 remaining fields, got %d", value.NumField())
@@ -98,7 +98,7 @@ func TestRemoveFieldFilter(t *testing.T) {
 // TestNilInsertTagFilter tests InsertTagFilter with a nil matcher.
 func TestNilInsertTagFilter(t *testing.T) {
 	filter := New(InsertTagFilter(nil, `test:"foo"`))
-	filtered := filter.To(StructTag{})
+	filtered := filter.Convert(StructTag{})
 	value := reflect.ValueOf(filtered)
 	tag0 := value.Type().Field(0).Tag
 	tag1 := value.Type().Field(1).Tag
@@ -122,7 +122,7 @@ func TestInsertTagFilter(t *testing.T) {
 	// Now proper test
 	const tag = `test:"inserted"`
 	filter := New(InsertTagFilter(re, tag))
-	filtered := filter.To(StructTag{})
+	filtered := filter.Convert(StructTag{})
 	value := reflect.ValueOf(filtered)
 	tag0 := value.Type().Field(0).Tag
 	tag1 := value.Type().Field(1).Tag
