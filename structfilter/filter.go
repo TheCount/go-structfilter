@@ -3,12 +3,73 @@ package structfilter
 import (
 	"fmt"
 	"reflect"
+	"strings"
 )
+
+// Matcher is the interface implemented by types which match a certain subset
+// of strings.
+//
+// For example, the *regexp.Regexp type from the golang standard library
+// implements this interface.
+type Matcher interface {
+	// MatchString reports whether the specified string matches.
+	MatchString(string) bool
+}
 
 // Func is a function type for altering or removing fields as they are
 // inserted into a new structure. Whenever a Filter function returns a non-nil
 // error, it will be reported back to the original caller of a filter method.
 type Func func(*Field) error
+
+// RemoveFieldFilter returns a filter function for removing all struct fields
+// whose names match the specified matcher. If m is nil, RemoveFieldFilter
+// will not remove any fields.
+func RemoveFieldFilter(m Matcher) Func {
+	if m == nil {
+		return func(*Field) error {
+			return nil
+		}
+	}
+	return func(f *Field) error {
+		if m.MatchString(f.Name()) {
+			f.Remove()
+		}
+		return nil
+	}
+}
+
+// InsertTagFilter inserts the specified structure tag into the structure tags
+// of all fields whose name matches the specified matcher, provided the key in
+// the specified tag string is not present yet. The string tag must have the
+// conventional format for a single key-value pair:
+//
+//     key:"value"
+//
+// If an original tag string does not have the conventional format, the
+// behaviour of the returned filter is unspecified.
+// If the matcher m is nil, no tags will be inserted.
+func InsertTagFilter(m Matcher, tag string) Func {
+	if m == nil {
+		return func(*Field) error {
+			return nil
+		}
+	}
+	idx := strings.Index(tag, ":")
+	if idx < 0 {
+		panic("tag not in conventional format")
+	}
+	key := tag[:idx]
+	return func(f *Field) error {
+		if !m.MatchString(f.Name()) {
+			return nil
+		}
+		if _, ok := f.Tag.Lookup(key); ok {
+			return nil
+		}
+		f.Tag = reflect.StructTag(tag) + f.Tag
+		return nil
+	}
+}
 
 // T is the main structfilter type.
 //

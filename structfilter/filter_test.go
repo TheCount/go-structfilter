@@ -3,8 +3,25 @@ package structfilter
 import (
 	"errors"
 	"reflect"
+	"regexp"
 	"testing"
 )
+
+// StructKeepRemove is a structure type for testing the RemoveFieldFilter
+// function.
+type StructKeepRemove struct {
+	Keep1   int
+	Remove1 int
+	Keep2   int
+	Remove2 int
+}
+
+// StructTag is a structure type for testing the InsertTagFilter function.
+type StructTag struct {
+	TagMe         int
+	NoThanks      int
+	TagMeNotAgain int `test:"alreadypresent"`
+}
 
 // errFilter is an error returned by filters for testing.
 var errFilter = errors.New("test filter error")
@@ -51,5 +68,72 @@ func TestErrFilter(t *testing.T) {
 		t.Error("Expected error with multiple filters")
 	} else if !errors.Is(err, errFilter) {
 		t.Errorf("Expected filter error, got: %s", err)
+	}
+}
+
+// TestNilRemoveFieldFilter tests RemoveFieldFilter with a nil matcher.
+func TestNilRemoveFieldFilter(t *testing.T) {
+	filter := New(RemoveFieldFilter(nil))
+	filtered := filter.To(StructKeepRemove{})
+	value := reflect.ValueOf(filtered)
+	if value.NumField() != 4 {
+		t.Error("Expected no removed fields with nil matcher")
+	}
+}
+
+// TestRemoveFieldFilter tests RemoveFieldFilter.
+func TestRemoveFieldFilter(t *testing.T) {
+	re := regexp.MustCompile("^Remove.*$")
+	filter := New(RemoveFieldFilter(re))
+	filtered := filter.To(StructKeepRemove{})
+	value := reflect.ValueOf(filtered)
+	if value.NumField() != 2 {
+		t.Errorf("Expected 2 remaining fields, got %d", value.NumField())
+	}
+	if value.FieldByName("Remove1").IsValid() {
+		t.Error("Field that should have been removed is still present")
+	}
+}
+
+// TestNilInsertTagFilter tests InsertTagFilter with a nil matcher.
+func TestNilInsertTagFilter(t *testing.T) {
+	filter := New(InsertTagFilter(nil, `test:"foo"`))
+	filtered := filter.To(StructTag{})
+	value := reflect.ValueOf(filtered)
+	tag0 := value.Type().Field(0).Tag
+	tag1 := value.Type().Field(1).Tag
+	if tag0 != "" || tag1 != "" {
+		t.Errorf("Expected unchanged tags, got `%s` and `%s` instead", tag0, tag1)
+	}
+}
+
+// TestInsertTagFilter tests InsertTagFilter.
+func TestInsertTagFilter(t *testing.T) {
+	re := regexp.MustCompile("^TagMe.*$")
+	// First test with bad tag format.
+	func() {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Error("Expected panic on bad tag format")
+			}
+		}()
+		InsertTagFilter(re, "badtag")
+	}()
+	// Now proper test
+	const tag = `test:"inserted"`
+	filter := New(InsertTagFilter(re, tag))
+	filtered := filter.To(StructTag{})
+	value := reflect.ValueOf(filtered)
+	tag0 := value.Type().Field(0).Tag
+	tag1 := value.Type().Field(1).Tag
+	tag2 := value.Type().Field(2).Tag
+	if tag0 != tag {
+		t.Errorf("Expected inserted tag `%s`, got `%s`", tag, tag0)
+	}
+	if tag1 != "" {
+		t.Errorf("Expected tag to be empty, got `%s`", tag1)
+	}
+	if tag2.Get(`test`) == "inserted" {
+		t.Error("Already present tag was overwritten")
 	}
 }
