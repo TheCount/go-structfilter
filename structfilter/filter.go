@@ -41,7 +41,7 @@ func (t *T) filterType(orig reflect.Type) (filtered reflect.Type, err error) {
 		}
 		field := Field{
 			name: origField.Name,
-			tag:  origField.Tag,
+			Tag:  origField.Tag,
 			keep: true,
 		}
 		if err = t.filter(&field); err != nil {

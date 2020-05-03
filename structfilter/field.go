@@ -11,7 +11,7 @@ type Field struct {
 	name string
 
 	// tag is the tag of the new struct field.
-	tag reflect.StructTag
+	Tag reflect.StructTag
 
 	// keep indicates whether the field should be kept.
 	keep bool
@@ -23,7 +23,7 @@ func (t *T) newField(
 ) reflect.StructField {
 	result := reflect.StructField{
 		Name:      field.name,
-		Tag:       field.tag,
+		Tag:       field.Tag,
 		Anonymous: orig.Anonymous,
 	}
 	mappedType := t.mapType(orig.Type)
