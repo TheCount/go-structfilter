@@ -3,6 +3,7 @@ package structfilter
 import (
 	"reflect"
 	"testing"
+	"time"
 )
 
 // TestNilReflectType tests the ReflectType method with a nil argument.
@@ -153,5 +154,49 @@ func TestNestedReflectType(t *testing.T) {
 		if origField.Type.Kind() != filteredField.Type.Kind() {
 			t.Error("Different kinds from NestedStruct")
 		}
+	}
+}
+
+// TestNilUnfilteredType tests the UnfilteredType and UnfilteredReflectType
+// methods with nil arguments.
+func TestNilUnfilteredType(t *testing.T) {
+	filter := New()
+	oldnum := len(filter.types)
+	filter.UnfilteredType(nil)
+	filter.UnfilteredReflectType(nil)
+	if len(filter.types) != oldnum {
+		t.Errorf("Unexpected new nil unfiltered types (%d, was %d)",
+			len(filter.types), oldnum)
+	}
+}
+
+// TestCuriousUnfilteredType tests UnfilteredType with self-referential types
+// not involving a struct.
+func TestCuriousUnfilteredType(t *testing.T) {
+	filter := New()
+	oldnum := len(filter.types)
+	filter.UnfilteredType(new(CuriousPointer))
+	filter.UnfilteredType(new(CuriousSlice))
+	filter.UnfilteredType(new(CuriousMap))
+	if len(filter.types) != oldnum {
+		t.Errorf("Unexpected new curious unfiltered types (%d, was %d)",
+			len(filter.types), oldnum)
+	}
+}
+
+// TestSafeStruct tests UnfilteredType for a structure type.
+func TestSafeStruct(t *testing.T) {
+	filter := New()
+	filter.UnfilteredType(time.Time{})
+	orig := SafeStruct{
+		SafeField: time.Now(),
+	}
+	filtered, err := filter.Convert(orig)
+	if err != nil {
+		t.Fatalf("Error filtering struct with safe field: %s", err)
+	}
+	filteredValue := reflect.ValueOf(filtered)
+	if !filteredValue.Field(0).Interface().(time.Time).Equal(orig.SafeField) {
+		t.Error("Values of unfiltered type do not match")
 	}
 }

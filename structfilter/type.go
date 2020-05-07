@@ -121,3 +121,51 @@ func (t *T) mapType(orig reflect.Type) (reflect.Type, error) {
 		return orig, nil
 	}
 }
+
+// UnfilteredType registers the type of the specified value as unfiltered.
+// Filter functions will not be called for this type, and values of this type
+// will simply be copied.
+//
+// This is useful for widely used "safe" types which would lose their utility
+// when filtered. What exactly defines a "safe" type is up to the caller. For
+// example, many applications consider the time.Time type from the standard
+// library to be safe.
+//
+// If value is nil, no operation is performed.
+func (t *T) UnfilteredType(value interface{}) {
+	rValue := reflect.ValueOf(value)
+	if !rValue.IsValid() {
+		return
+	}
+	t.UnfilteredReflectType(rValue.Type())
+}
+
+// UnfilteredReflectType behaves like UnfilteredType, except that it accepts a
+// type as presented by the golang reflect package.
+func (t *T) UnfilteredReflectType(typ reflect.Type) {
+	if typ == nil {
+		return
+	}
+	seenTypes := make(map[reflect.Type]struct{})
+	t.unfilteredReflectType(seenTypes, typ)
+}
+
+// unfilteredReflectType implements UnfilteredReflectType, keeping track of
+// seen types to avoid infinite recursion.
+func (t *T) unfilteredReflectType(
+	seenTypes map[reflect.Type]struct{}, typ reflect.Type,
+) {
+	if _, ok := seenTypes[typ]; ok {
+		return
+	}
+	seenTypes[typ] = struct{}{}
+	switch typ.Kind() {
+	case reflect.Struct:
+		t.types[typ] = typ
+	case reflect.Map:
+		t.unfilteredReflectType(seenTypes, typ.Key())
+		fallthrough
+	case reflect.Ptr, reflect.Slice:
+		t.unfilteredReflectType(seenTypes, typ.Elem())
+	}
+}

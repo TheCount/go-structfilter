@@ -1,5 +1,7 @@
 package structfilter
 
+import "time"
+
 // SimpleStruct is a simple, non-recursive structure type for testing.
 type SimpleStruct struct {
 	Bool       bool
@@ -61,4 +63,18 @@ type NestedStruct struct {
 	Map   map[nested]nested
 	Ptr   *nested
 	Slice []nested
+}
+
+// CuriousPointer is self-referential pointer type.
+type CuriousPointer *CuriousPointer
+
+// CuriousSlice is a self-referential slice type.
+type CuriousSlice []CuriousSlice
+
+// CuriousMap is a self-referential map type.
+type CuriousMap map[*CuriousMap]CuriousMap
+
+// SafeStruct is a structure type with a safe field.
+type SafeStruct struct {
+	SafeField time.Time
 }
