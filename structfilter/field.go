@@ -10,7 +10,7 @@ type Field struct {
 	// cannot be changed.
 	name string
 
-	// tag is the tag of the new struct field.
+	// Tag is the tag of the new struct field.
 	Tag reflect.StructTag
 
 	// keep indicates whether the field should be kept.
