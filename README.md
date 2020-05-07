@@ -81,7 +81,7 @@ This will print the following output to the console:
 ]
 ```
 
-Check out the [complete example here](https://github.com/TheCount/go-structfilter/blob/master/structfilter/examples/userdbjson.go)!
+Check out the [complete example here](https://github.com/TheCount/go-structfilter/blob/master/structfilter/examples/userdbjson/userdbjson.go)!
 
 ## Restrictions
 
